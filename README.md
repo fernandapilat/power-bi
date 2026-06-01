@@ -11,7 +11,7 @@ The table below lists the courses and learning paths (trilhas) I am currently ta
 | Type | Course / Path Name | Status |
 | :--- | :--- | :---: |
 | Course | Power BI: aplicando a RLS | In Progress |
-| Path | Praticando Power BI | Not Started |
+| Path | Praticando Power BI | In Progress |
 | Path | DAX no Power BI | Not Started |
 | Course | Python e Power BI: analisando dados do mercado financeiro | Not Started |
 | Course | Power BI: criando visuais customizados | Not Started |
