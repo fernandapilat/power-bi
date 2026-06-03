@@ -29,7 +29,7 @@ Total Vendas (Column) = Fato_Pedidos[Quantidade] * RELATED(Dim_Produtos[Preco])
 ##### Step 2: Aggregating via Measure
 Once the column existed, a standard measure was built inside the `_Measures` table to sum it up for report visuals (e.g., Card visual displaying **9 Billion**):
 
-Total Vendas (Measure) = SUM(Fato_Pedidos[Total Vendas (Column)])
+Total Vendas = SUM(Fato_Pedidos[Total Vendas (Column)])
 
 ⚠️ **The Performance Bottleneck:** This approach generated over 147,000 new rows of hard data inside the Fact table. Expanding a Fact table with calculated columns eats up massive amounts of RAM and storage, creating a severe performance drag.
 
@@ -93,7 +93,7 @@ SWITCH(
 
 The `SWITCH` function evaluates an expression against a list of values and returns one of multiple possible result expressions.
 
-* **Expression / Target:** `'Fato_Pedidos'[UF]` — This is the column that the function examines row-by-row.
+* **Expression / Target:** `'Fato_Pedidos'[Regiao]` — This is the column that the function examines row-by-row.
 * **Value-Result Pairs:** The function checks if the row matches a specific state code (e.g., `"BR-SP"`) and assigns the corresponding region text (e.g., `"Sudeste"`).
 * **The Default Value:** `"Desconhecido"` — The very last argument acts as an `ELSE` statement. If a row contains a state code that wasn't explicitly mapped in the list, it automatically falls into this fallback category, preventing blank anomalies.
 
@@ -181,7 +181,7 @@ The leadership team at Hermex requires a key performance indicator (KPI) named *
 
 Ship to Door = AVERAGEX(Fato_Pedidos, DATEDIFF(Fato_Pedidos[Data da Compra], Fato_Pedidos[Data de Entrega], DAY))
 
-3. Format the measure as a **Decimal Number** (e.g., with 1 or 2 decimal places) to track precise fractional day shifts in delivery performance.
+3. Format the measure as a **Decimal Number** with 1 or 2 decimal places to track precise fractional day shifts in delivery performance.
 
 ---
 
@@ -254,8 +254,6 @@ This metric introduces advanced DAX architecture patterns resembling traditional
 
 ---
 
----
-
 ### 8. Creating an Automated Calendar Table (Dim_Calendario)
 
 #### Objective
@@ -306,12 +304,12 @@ The logistics directors at Hermex need to analyze the percentage distribution of
 
 % Vendas por Veículo e Região = 
 VAR VendasContexto = [Total Vendas Otimizada]
-VAR VendasDaRegiao = CALCULATE([Total Vendas Otimizada], ALL(Dim_Veículos))
+VAR VendasDaRegiao = CALCULATE([Total Vendas Otimizada], ALL(Dim_Veiculos))
 RETURN
     DIVIDE(VendasContexto, VendasDaRegiao, 0)
 
 3. Format the measure strictly as a **Percentage (%)** with 1 or 2 decimal places.
-4. **Visual Setup:** Create a **Matrix** visual, drag `Fato_Pedidos[Regiao]` to Rows, `Dim_Veículos[Tipo]` to Columns, and this new measure to the Values area.
+4. **Visual Setup:** Create a **Matrix** visual, drag `Fato_Pedidos[Regiao]` to Rows, `Dim_Veiculos[Tipo]` to Columns, and this new measure to the Values area.
 
 ---
 
@@ -319,5 +317,34 @@ RETURN
 
 This solution uses a targeted filter clearing strategy to calculate partial totals inside a multi-axis visual:
 
-* **Targeted ALL(Dimension_Table)**: Instead of clearing all report filters with `ALL(Fato_Pedidos)`, passing `ALL(Dim_Veículos)` directs the engine to selectively drop filters coming *only* from the vehicle fleet attributes. 
+* **Targeted ALL(Dimension_Table)**: Instead of clearing all report filters with `ALL(Fato_Pedidos)`, passing `ALL(Dim_Veiculos)` directs the engine to selectively drop filters coming *only* from the vehicle fleet attributes. 
 * **Context Preservation**: When evaluating a specific matrix cell (e.g., "Norte" rows and "Moto" columns), the denominator overrides the "Moto" filter to calculate the sum of *all* vehicles, but preserves the "Norte" filter intact. This ensures the division calculates the vehicle's share relative to that specific region, rather than the global company turnover.
+
+---
+
+### 10. Model Governance & Display Folders (Organizing Measures)
+
+#### Objective
+As the DAX analytical layer expands, keeping all metrics in a single flat list reduces usability for report builders. To ensure clean governance and easy discovery, the measures inside the `_Measures` table must be structurally grouped into functional **Display Folders** based on their business domain.
+
+#### Step-by-Step Implementation
+
+1. Navigate to the **Model View** (Exibição de Modelagem) using the left sidebar in Power BI Desktop.
+2. Select the `_Measures` table to expand its contents.
+3. Multi-select or individually click the metrics and use the **Properties Pane** (Painel de Propriedades) on the right to assign them to a **Display Folder** (Pasta de Exibição):
+
+| Target Folder | Measures to Include |
+| :--- | :--- |
+| **Receita e Vendas** | `[Total Vendas Otimizada]`, `[% Receita de Pedidos da Região Norte]`, `[% Vendas por Veículo e Região]` |
+| **Logística e Entrega** | `[Ship to Door]`, `[Tempo Médio de Entrega (Sudeste)]`, `[Total pedidos atrasados]`, `[Total pedidos no prazo]`, `[Média Total Estoque]` |
+
+4. To assign a folder, simply type the folder name exactly as shown above into the **Display Folder** field and press **Enter**. To add a measure to an existing folder later, start typing the name and select it from the auto-complete dropdown.
+
+---
+
+#### Technical Breakdown: Folder Architecture and UI Benefits
+
+Managing measures through display folders modifies the metadata layer of the Power BI file without altering the underlying DAX calculations:
+
+* **UI Organization:** Once assigned, the flat list inside the `_Measures` table transforms into an expandable directory tree in the Fields pane. This strictly mirrors standard folder navigation used in file explorers.
+* **Multi-Folder Assignment:** *Advanced Tip:* If a metric belongs to more than one category (e.g., a metric that calculates both financial and logistic impact), you can place it in multiple folders simultaneously by typing the folder names separated by a semicolon (e.g., `Receita e Vendas; Logística e Entrega`). The engine will virtually display the measure in both folders while maintaining only a single unique code base.
