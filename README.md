@@ -10,11 +10,13 @@ The table below lists the courses and learning paths (trilhas) I am currently ta
 
 | Type | Course / Path Name | Status |
 | :--- | :--- | :---: |
-| Course | Power BI: Implementing RLS | In Progress |
 | Path | Practicing Power BI | Completed |
-| Path | DAX in Power BI | Not Started |
+| Quick Guide | Power BI: ETL with Python in Power BI | Completed |
+| Path | DAX in Power BI | NIn Progress |
 | Course | Python and Power BI: Analyzing Financial Market Data | Not Started |
 | Course | Power BI: Creating Custom Visuals | Not Started |
+| Course | Power BI: Implementing RLS | In Progress |
+
 
 ---
 
