@@ -102,3 +102,40 @@ Visual indicators to audit fields in the Data pane:
 
 ---
 
+## 3. Calculated Columns vs. Measures (Efficiency & Use Cases)
+
+### 3.1. Memory and Storage Performance
+Choosing between a calculated column and a measure directly impacts report performance and file size:
+* **Calculated Columns (Storage Heavy):** Computed during data refresh and stored physically inside the data model. 
+  * *Impact:* They consume both **disk storage** and **RAM**. In tables with millions of rows, adding multiple calculated columns can significantly increase the `.pbix` file size and degrade performance.
+* **Measures (Processing Heavy):** Do not occupy physical space or storage in the model. They are calculated dynamically on-the-fly.
+  * *Impact:* They consume **CPU processing power** only when a visual on the canvas requests them. 
+
+### 3.2. Evaluation Context Comparison
+* **Calculated Columns ➔ Row Context:** They compute values line-by-line upon data load, completely static regarding user interactions on the report.
+* **Measures ➔ Filter Context:** They evaluate data dynamically based on the current visual environment. They recalculate instantly whenever a user interacts with slicers, filters, or cross-filtering.
+
+### 3.3. Best Practices for Model Optimization
+* **The Golden Rule:** If a calculation can be achieved through either a calculated column or a measure, **always default to a measure** to preserve hardware resources.
+* **Temporary Columns Strategy:** Creating step-by-step calculated columns can be a helpful intermediate strategy to understand a complex calculation. However, once the final logic is established, these redundant temporary columns should be deleted or converted into a single optimized measure to keep the model clean and fast.
+* **Business Intent:** Calculated columns are ideal when you need to slice or group data (e.g., age groups, categories). Measures are ideal when you simply need to display a numeric KPI or scalar value (e.g., Total Sales, Profit Margin).
+
+### 3.4. Practical Case: Building Gross Margin via Calculated Columns
+To calculate the **Gross Margin %** of the last month, a step-by-step approach was tested by creating four sequential calculated columns in the `Livros` table:
+
+1. **Faturamento Total (Total Revenue):** `Faturamento total = 'Livros'[Preço Unitário] * 'Livros'[Quantidade de vendas]`
+2. **Custo Total (Total Cost):** `Custo Total = 'Livros'[Preço de custo] * 'Livros'[Quantidade de vendas]`
+3. **Margem Bruta (Gross Margin):** `Margem bruta = 'Livros'[Faturamento total] - 'Livros'[Custo Total]`
+4. **Margem Bruta % (Gross Margin %):** `Margem bruta % = 'Livros'[Margem bruta] / 'Livros'[Faturamento total]`
+
+* **Formatting Tip:** To display decimals as percentages, select the column, go to **Column Tools** in the top menu, and click the **`%`** icon.
+
+### 3.5. Visualizing the Result & The "Total Row" Trap
+When testing these columns inside a Table Visual on the Canvas, the following configuration was used:
+* **Fields:** `ID` (set to *"Don't Summarize"* to show individual books), `Faturamento total`, `Custo Total`, `Margem bruta`, and `Margem bruta %`.
+* **The Bug:** While the percentage for each individual book row was mathematically correct, the **Total Row** displayed an impossible value of **4,029.48%**.
+
+### 3.6. Why did the Total Row fail?
+* **Column Summation Behavior:** By default, when a calculated column is dropped into a visual, Power BI applies a `SUM` aggregation to the total row. 
+* **The Math Error:** Power BI literally added up the percentage of book 1 + book 2 + book 3... and so on. In business intelligence, **you can never sum ratios or percentages** to find a grand total; you must recalculate the ratio based on the aggregated totals.
+
