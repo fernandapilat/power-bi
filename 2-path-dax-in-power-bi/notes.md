@@ -139,3 +139,88 @@ When testing these columns inside a Table Visual on the Canvas, the following co
 * **Column Summation Behavior:** By default, when a calculated column is dropped into a visual, Power BI applies a `SUM` aggregation to the total row. 
 * **The Math Error:** Power BI literally added up the percentage of book 1 + book 2 + book 3... and so on. In business intelligence, **you can never sum ratios or percentages** to find a grand total; you must recalculate the ratio based on the aggregated totals.
 
+### 3.7. Resolving the Total Bug with Measures
+To fix the mathematical distortion in the total row, the percentage must be calculated using a **Measure** instead of a calculated column.
+
+* **The Correct Formula:** `Margem bruta % correta = SUM('Livros'[Margem bruta]) / SUM('Livros'[Faturamento total])`
+* **The Logic:** Instead of dividing row-by-row and then summing the results, the measure forces Power BI to sum the entire margin first, sum the entire revenue second, and then perform the division.
+* **Formatting Tip:** Just like columns, select the measure and click the **`%`** icon under **Measure Tools** to format the decimals properly.
+
+### 3.8. Core Concept: Context of Filter (Contexto de Filtro) vs. Row Context
+This practical scenario showcases how evaluation contexts dictate the behavior of your data:
+* **Calculated Column (Row Context):** It evaluated the division strictly on each physical row of the dataset during data load. When placed into the visual's Total row, it defaulted to a blind `SUM` of all those static percentages.
+* **Measure (Filter Context / Visual Context):** It has no physical rows. It adapts dynamically to the visual's environment. 
+  * On individual rows, the `ID` acts as a filter, forcing the measure to compute the math for that specific book.
+  * On the Total row, there are no filters splitting the data, so the measure dynamically evaluates the formula against the aggregate totals of the entire model.
+
+### 3.9. Measure Portability and Home Tables
+* **Home Table Requirement:** Every DAX measure must be created inside or assigned to a specific table in the model.
+* **Global Scope:** Unlike columns, a measure is not restricted to its "Home Table". Because it references explicit tables and columns within its code, you can move a measure to any other table in the Data pane, and it will compute exactly the same results without breaking the visuals.
+
+
+### 3.10. Summary Cheat Sheet: Calculated Columns vs. Measures
+
+The table below summarizes the architectural and operational differences between the two methods of implementation in DAX:
+
+| Feature | Calculated Columns (`Calculated Columns`) | Measures (`Measures`) |
+| :--- | :--- | :--- |
+| **Calculation Level** | **Individual Values:** Computes a unique result for each single row. | **Aggregated Values:** Computes summaries (SUM, AVERAGE, MAX, etc.) over multiple rows. |
+| **Storage & Memory** | **Physical:** Stored directly inside the data model, increasing file size (`.pbix`) and RAM usage. | **Virtual:** Calculated on-the-fly under demand; takes up zero storage space. |
+| **Evaluation Context** | **Row Context:** Operates statically row-by-row during data refresh. | **Filter Context:** Operates dynamically, responding to slicers, filters, and visuals. |
+| **Reusability** | **Restricted:** Specific to the table where they are created. | **Global:** Highly reusable across different visuals, tables, and reports. |
+| **Primary Use Case** | **Slicing & Grouping:** Ideal for creating filters, categories, and age groups. | **KPIs & Metrics:** Ideal for values displayed inside charts, cards, and data matrices. |
+| **Complexity** | Best suited for **simple, direct formulas** applied at a row level. | Designed for **complex calculations** involving filters and dynamic context shifts. |
+
+---
+
+## 4. DAX Iterators and Variables
+
+### 4.1. Introduction to Variables
+Variables act as dynamic containers within a specific DAX expression to store calculations, scalar values, or tables. 
+* **Declaration:** Initiated by the keyword `VAR` followed by the variable name.
+* **Execution:** Every variable block *must* end with the `RETURN` keyword, which tells DAX which final expression to evaluate and display.
+
+### 4.2. Syntax Standards & Naming Conventions
+* **CamelCase Pattern:** Variable names cannot contain spaces. The best practice is to capitalize the first letter of each word (e.g., `FaturamentoTotal`, `CustoTotal`).
+* **Visual Identifiers (IntelliSense):** When typing code, the autocomplete menu displays an **`X`** icon next to variables, distinguishing them from functions (which display an **`fx`** icon).
+
+### 4.3. Practical Case: Rewriting Gross Margin with Variables
+Instead of creating multiple measures or columns, variables allow calculating the final ratio cleanly within a single measure. 
+
+```dax
+Margem bruta % VAR = 
+VAR FaturamentoTotal = SUM('Livros'[Faturamento total])
+VAR CustoTotal = SUM('Livros'[Custo total])
+VAR MargemBruta = FaturamentoTotal - CustoTotal
+RETURN
+    MargemBruta / FaturamentoTotal
+```
+
+### 4.4. Key Advantages of Variables
+1. **Readability (Less Verbose):** Avoids writing repetitive nested calculations. Code structure is organized and structured vertically using Shift + Enter.
+2. **Performance (CPU Efficiency):** DAX evaluates the expression inside a variable only once. If that variable is called multiple times later in the code, DAX reuses the cached result instead of recalculating the formula from scratch.
+3. **On-Demand Processing:** If you declare multiple variables but do not reference them after the RETURN keyword, DAX will completely ignore them and consume zero processing power.
+
+### 4.5. Scope Limitation
+* **Local Scope Only:** Variables in DAX are strictly local. A variable declared inside "Measure A" cannot be seen, called, or reused by "Measure B". 
+
+### 4.6. Analytics: Calculating Lead Time with Dates
+**Lead Time** represents the total time required to complete a specific process (e.g., the days elapsed between a customer buying a book and receiving it).
+
+To calculate this in the `registro_vendas` table, a calculated column was created:
+* **The Format Issue:** Subtracting two Datetime columns directly keeps the result formatted as a Date/Time string, which is unreadable for business metrics.
+* **The Solution (`INT` Function):** Datetime values in Power BI are stored as numbers behind the scenes. Wrapping the subtraction in the `INT()` function forces the system to convert the time gap into a clean integer representing the total number of days.
+
+Formula to copy and format manually:
+Leadtime = INT('registro_vendas'[Data_Entrega] - 'registro_vendas'[Data_Compra])
+
+### 4.7. Aggregating Lead Time: `AVERAGE`
+When analyzing Lead Time in a report, summing the days makes no business sense. The true value lies in finding the average delivery speed.
+
+* **Quick Visual Shortcut:** You can drop the `Leadtime` column into a table visual, click the dropdown arrow next to the field name, and switch the aggregation from **Sum** to **Average** (`Média`).
+* **The Best Practice (Explicit Measure):** To keep the model clean and professional, it is always better to write an explicit DAX measure using the `AVERAGE` function.
+
+Formula to copy and format manually:
+Média do leadtime = AVERAGE('registro_vendas'[Leadtime])
+
+---
