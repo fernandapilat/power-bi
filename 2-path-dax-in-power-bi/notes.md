@@ -341,3 +341,53 @@ When handling multiple evaluation branches (three or more outcomes), nesting mul
 
 * **Key Execution Rule (Order Matters):** Since DAX scans from top to bottom, broader conditions must sit below restrictive ones. In the example above, placing `> 15000` before `> 20000` would trap a 25,000 value inside the "Médio" category incorrectly.
 * **The Fallback Argument:** The final string (`"Faturamento baixo"`) acts as the standard `ELSE`. If none of the conditions above it are met, DAX automatically applies this value.
+
+### 5.6. Implementing `SWITCH()` Inside Measures (Context Transition)
+When writing a **Measure** instead of a Calculated Column, DAX prevents you from referencing raw table columns (e.g., `'Table'[Column]`) directly inside conditional logic. This occurs because measures operate under Filter Context and require a single, aggregated scalar value.
+
+* **The Solution (Variable Aggregation):** To evaluate column values inside a measure, you must first "wrap" the column inside an aggregation function (like `SUM`, `MAX`, or `SELECTEDVALUE`) using a variable (`VAR`).
+
+```dax
+  Categoria de vendas = 
+  VAR QntdVendas = SUM('livros'[Quantidade de vendas])
+  RETURN
+      SWITCH(
+          TRUE(),
+          QntdVendas > 240, "Alta",
+          QntdVendas > 100, "Média",
+          "Baixa"
+      )
+```
+
+* **How it Behaves:** Even though the measure uses `SUM()`, it dynamically calculates the sales volume row-by-row inside a table visual due to the active **Filter Context** of that specific row, applying the correct conditional tag ("Alta", "Média", "Baixa") automatically.
+
+### 5.7. Practical Challenges: Advanced SWITCH and Iterators (X-Functions)
+Documenting the resolution of practical structural challenges regarding conditional boundaries and row-by-row iteration.
+
+#### Challenge 1: Expanded Pricing Tiers with `SWITCH()`
+* **Objective:** Create a calculated column separating unit costs into three distinct commercial tiers (Low, Medium, High).
+* **Implementation:**
+  Classificação Preço = 
+  SWITCH(
+      TRUE(),
+      'livros'[Preço de custo] >= 40, "Custo Alto",
+      'livros'[Preço de custo] > 30, "Custo Médio",
+      "Custo Baixo"
+  )
+* **Key Concept:** Leveraged the top-to-bottom evaluation behavior of `SWITCH(TRUE())` to avoid writing complex `AND()` or `&&` range boundaries.
+
+#### Challenge 2: Dynamic Row-by-Row Minimum with `MINX()`
+* **Objective:** Calculate the lowest total revenue (Faturamento) snapshot by multiplying pricing and volume before executing the minimum evaluation.
+* **Implementation:**
+  FaturamentoMin = MINX('livros', 'livros'[Preço Unitário] * 'livros'[Quantidade de vendas])
+* **Key Concept:** Used an **Iterator Function (`MINX`)** to inject a virtual Row Context over the `'livros'` table, executing the scalar multiplication line-by-line before retrieving the absolute minimum value for the Filter Context.
+
+## References & Study Materials
+
+To sustain the technical depth of this repository, the learning path is backed by the official documentation and leading literature in the Business Intelligence industry:
+
+* **Official Documentation:** [Microsoft DAX Reference Guide](https://learn.microsoft.com/pt-br/dax/) — Used for syntax validation, data type conversion rules, and engine constraints.
+* **Literature - Fundamentals & Strategy:** *Business Intelligence: Implementar do jeito certo e a custo zero* (Ronaldo Braghittoni) — Focused on architecture, modeling strategies, and delivering zero-cost corporate value.
+* **Literature - Advanced Engine & Performance:** *The Definitive Guide to DAX: Business Intelligence for Microsoft Power BI, SQL Server Analysis Services, and Excel* (Marco Russo & Alberto Ferrari, 2019) — The global authority blueprint used to master complex Filter/Row Contexts, Context Transition, and VertiPaq engine performance optimization.
+
+---
