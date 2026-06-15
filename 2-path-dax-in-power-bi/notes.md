@@ -223,4 +223,121 @@ When analyzing Lead Time in a report, summing the days makes no business sense. 
 Formula to copy and format manually:
 Média do leadtime = AVERAGE('registro_vendas'[Leadtime])
 
+### 4.8. DAX Iterators: The "X" Functions
+An **Iterator** is a type of function that evaluates an expression row-by-row across a table (creating a temporary Row Context) and then applies an aggregation to the final results.
+
+* **Sufix "X" Rule:** Most standard aggregation functions have an iterator version identified by an "X" at the end: `SUM` becomes `SUMX`, `AVERAGE` becomes `AVERAGEX`, `MIN` becomes `MINX`, and so on.
+* **The Iterator Anatomy:** Every "X" function strictly requires at least two arguments:
+  `FUNCTIONX( <Table>, <Expression> )`
+  1. **Table:** The target table that DAX will scan line-by-line.
+  2. **Expression:** The calculation/formula to execute on each individual row.
+
+### 4.9. Practical Case: Replacing Physical Columns with `AVERAGEX`
+Instead of storing a physical `Leadtime` column inside the model, `AVERAGEX` computes the time difference virtually in memory:
+
+Formula to copy and format manually:
+Média Leadtime Iterando = 
+AVERAGEX(
+    'registro_vendas', 
+    INT('registro_vendas'[Data_Entrega] - 'registro_vendas'[Data_Compra])
+)
+
+* **The Result:** The measure scans the sales table, calculates the integer difference between delivery and purchase for each row, and finally calculates the grand average of those results.
+* **Optimization Benefit:** This allowed deleting the physical `Leadtime` column from the model, instantly reducing file size (`.pbix`) and saving RAM.
+
+### 4.10. Challenge Solved: Decoupling the Model from Calculated Columns
+By refactoring the Gross Margin % calculation into a single standalone measure, the dataset was completely cleaned up, and all intermediate calculated columns were safely deleted.
+
+* **Course Solution:** Used raw division (`MargemBruta / FaturamentoTotal`), which is prone to division-by-zero errors (`NaN` / `Infinity`).
+* **My Optimized Solution:** Utilized the `DIVIDE()` function with an alternate result of `0`, ensuring total dashboard stability and bulletproof data integrity.
+
+Formula applied successfully:
+Margem Bruta % Final = 
+VAR FaturamentoTotal = SUMX('livros', 'livros'[Preço Unitário] * 'livros'[Quantidade de vendas])
+VAR CustoTotal = SUMX('livros', 'livros'[Preço de custo] * 'livros'[Quantidade de vendas])
+RETURN
+    DIVIDE(FaturamentoTotal - CustoTotal, FaturamentoTotal, 0)
+
 ---
+
+## 5. DAX Contexts and Type Conversion
+
+### 5.1. Data Type Conversion with `CONVERT`
+The `CONVERT` function in DAX is a utility tool used to explicitly change a value from one data type to another. It ensures data consistency and compatibility inside measures or calculated columns.
+
+* **Syntax Structure:**
+  CONVERT(<Value>, <DataType>)
+
+* **Supported Destination Data Types:**
+  1. **INTEGER:** Converts decimals to whole numbers (e.g., `CONVERT(3.14, INTEGER)` yields `3`).
+  2. **DOUBLE:** Converts whole numbers to floating-point decimals (e.g., `CONVERT(42, DOUBLE)` yields `42.0`).
+  3. **STRING:** Converts numbers or dates into standard text (e.g., `CONVERT(100, STRING)` yields `"100"`).
+  4. **BOOLEAN:** Converts text strings or numbers into logical flags (e.g., `CONVERT("TRUE", BOOLEAN)` yields `TRUE`).
+  5. **CURRENCY:** Converts values into fixed-point monetary values.
+  6. **DATETIME:** Converts standard text representations of time into date/time objects.
+
+* **Critical Constraint:** Not all types are cross-compatible. Attempting an illogical conversion (like converting words into an INTEGER) will result in computation errors. Always ensure the underlying text structure matches the target destination format.
+
+### 5.2. Handling Missing Data: `BLANK()` and `ISBLANK()`
+In DAX, missing values, empty cells, or data skips are categorized under a single unified concept called **BLANK**. 
+
+* **Propagation Risk:** If you execute a mathematical operation (like multiplication) between a valid number and a `BLANK` value, DAX will naturally propagate the result as a `BLANK`.
+* **The `BLANK()` Function:** Directly returns an empty value. While rarely used by itself, it is highly powerful when nested inside conditional logic to mask errors or hide empty rows.
+  ColunaVazia = BLANK()
+
+* **The `ISBLANK()` Function:** A logical checker that scans a value or column row-by-row and returns `TRUE` if the cell is empty, or `FALSE` if it contains any data.
+  VerificaVazio = ISBLANK('registro_vendas'[Código_Postal_Entrega])
+
+### 5.3. Conditional Logic: `IF()` and `IFERROR()`
+Conditional functions allow the creation of dynamic data classifications and provide a vital mechanism for error handling inside the model.
+
+* **The `IF()` Function:** Executes a logical test and branches the result based on whether the condition evaluates to `TRUE` or `FALSE`.
+  
+  Syntax Structure:
+  Classificação da margem = 
+  IF(
+      'Livros'[Margem bruta %] > 0.4,
+      "Margem alta",
+      "Margem baixa"
+  )
+
+* **The `IFERROR()` Function:** Acts as a safety guardrail. It evaluates an expression, and if that expression produces a computation error (like dividing by zero or pulling mismatched types), it returns an alternate fallback value instead of breaking the visual or stopping execution.
+  
+```dax
+  TratamentoErro = IFERROR('Livros'[Preço de custo] * 'Livros'[Quantidade de vendas], BLANK())
+```
+
+* **Best Practice with `BLANK()`:** Pairing `IFERROR` with `BLANK()` ensures that faulty rows simply remain empty and hidden, preserving dashboard presentation without halting the entire model's calculations.
+
+### 5.4. Error Detection: The `ISERROR()` Function
+Unlike `IFERROR`, which catches and resolves an error in a single step, `ISERROR()` is a pure logical checker. It evaluates an expression and returns `TRUE` if an error is detected, and `FALSE` if the calculation is successful.
+
+* **Nesting with `IF()`:** To handle errors using `ISERROR`, you must manually nest it inside an `IF` statement.
+  
+  Syntax Structure:
+  ManejoManualErro = 
+  IF(
+      ISERROR('Livros'[Preço de custo] * 'Livros'[Quantidade de vendas]),
+      BLANK(), // What to do if TRUE (there is an error)
+      'Livros'[Preço de custo] * 'Livros'[Quantidade de vendas] // What to do if FALSE (it is clean)
+  )
+
+* **`IFERROR` vs `IF(ISERROR())`:** * `IFERROR` is cleaner, faster to write, and optimized by the DAX engine.
+  * `IF(ISERROR())` is legacy syntax but offers more flexibility if you need to run a completely different calculation when an error occurs.
+
+  ### 5.5. Advanced Conditionals: The `SWITCH()` Function
+When handling multiple evaluation branches (three or more outcomes), nesting multiple `IF` functions creates unreadable and complex code. The `SWITCH` function solves this by evaluating a single expression against an ordered list of conditions.
+
+* **The `SWITCH(TRUE())` Pattern:** By passing `TRUE()` as the primary expression, you instruct DAX to scan down the list row-by-row and execute the very first condition that evaluates to true. Once a match is found, execution stops for that row.
+
+* **Syntax Structure:**
+  Classificação do faturamento = 
+  SWITCH(
+      TRUE(),
+      'Livros'[Faturamento total] > 20000, "Faturamento alto",
+      'Livros'[Faturamento total] > 15000, "Faturamento médio",
+      "Faturamento baixo" // The default fallback (Else)
+  )
+
+* **Key Execution Rule (Order Matters):** Since DAX scans from top to bottom, broader conditions must sit below restrictive ones. In the example above, placing `> 15000` before `> 20000` would trap a 25,000 value inside the "Médio" category incorrectly.
+* **The Fallback Argument:** The final string (`"Faturamento baixo"`) acts as the standard `ELSE`. If none of the conditions above it are met, DAX automatically applies this value.
