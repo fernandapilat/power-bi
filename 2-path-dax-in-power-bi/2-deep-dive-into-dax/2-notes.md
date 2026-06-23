@@ -186,3 +186,110 @@ The `CALCULATE()` function acts as the supreme orchestrator in DAX. It is the on
   )
 
 * **Visual Behavior (Filter Overwrite):** Because the filter parameter utilizes an absolute predicate, it violently destroys the visual table filters coming from the matrix headers (e.g., `Épico e Aventura` or `Mistério e Suspense`), forcing the engine to return the static `Fantasia` revenue ($5.715,00) across every single row cell.
+
+### 3.2. Explicit vs. Implicit Filter Intersection (The FILTER Table Trap)
+When nesting filters inside execution blocks, developers must strictly respect table versus column constraints to avoid evaluation errors and ensure predictable context interactions.
+
+* **The Naked Column Error (Syntax Trap):** Passing a raw, naked column expression (e.g., `FILTER(Table[Column], ...)`) into a table-iterator function triggers a terminal engine crash. The `FILTER()` function strictly demands a complete **Table** reference as its primary evaluation field. To fix it, you must pass the entire table name or use optimized implicit predicates.
+
+* **The Overwrite vs. Intersection Mechanism:**
+  * **`Fantasia Vendas All` (Using `ALL`):** Forces the engine to completely wipe out the background matrix coordinates, evaluating the target predicate globally. Result: The exact same value ($5.715,00) is mirrored across all rows.
+  * **`Fantasia Vendas` (Using Base Table/Implicit):** Intersects the background visual coordinate (e.g., Row context = `Épico e Aventura`) with the internal predicate (`Categoria = "Fantasia"`). Since a record cannot satisfy two distinct categorical coordinates simultaneously, the intersection results in a logical contradiction and returns an empty `BLANK`.
+
+* **Production Code Optimization:**
+  To achieve the intersection behavior without writing verbose, risk-prone `FILTER()` tables, use the optimized native DAX syntax:
+
+```dax
+  Fantasia Vendas = 
+  CALCULATE(
+      'Medidas'[Total de faturamento],
+      'registro_livros_marketing'[Categoria] = "Fantasia"
+  )
+```
+
+### 3.3. Cross-Dimensional Filtering & Logic Intersection
+When a measure with an embedded hardcoded filter evaluates inside a visual mapped by a completely different dimension, the DAX engine performs a logical cross-dimensional intersection.
+
+* **The Matrix Coordinate Merge (Dimension Cross-Join):** When evaluating `[Fantasia Vendas]` inside a table sliced by `Editora`:
+  1. **Visual Filter Context:** The matrix row injects an active filter on a specific publisher (e.g., `Editora = "Alexandria"`).
+  2. **Internal CALCULATE Modifier:** The measure injects its own hardcoded predicate (`Categoria = "Fantasia"`).
+  3. **The Engine Intersection:** The engine combines both coordinates using an `AND` logical operator (`Editora = "Alexandria"` **AND** `Categoria = "Fantasia"`), evaluating the total revenue only for rows that satisfy both criteria simultaneously.
+
+* **The BLANK Handling Reality:** If a specific coordinate pair yields no matching rows in the dataset (e.g., `Editora = "Povo do Livro"` **AND** `Categoria = "Fantasia"`), the engine evaluates to an empty state (`BLANK`). In DAX tables, rows resulting in a complete `BLANK` for a measure are implicitly hidden to protect layout cleanliness.
+
+### 3.4. Overriding Visual Coordinates via CALCULATE & ALL
+By default, DAX engine evaluations are bounded by the dimensional coordinates of the active visual matrix. To break this default boundary and perform macro-level comparisons, developers must force an explicit filter override.
+
+* **Context Erasure with `ALL()`:** When embedded as a modifier inside `CALCULATE()`, the `ALL(Table[Column])` function acts as an engine instruction to selectively clear any active filters coming from that specific column in the visual header.
+* **The Global Reference Pattern:** This combination forces the internal expression (e.g., `AVERAGE()`, `SUM()`) to evaluate against the entire data scope of that attribute, regardless of what the end-user is slicing or viewing in the report row.
+
+## 4: Matrix Hierarchies & Advanced Context Evaluation
+
+### 4.1. Matrix Drill-downs and Multi-Layered Filter Contexts
+The Matrix visual introduction fundamentally reshapes data evaluation. Unlike flat tables, a Matrix establishes an implicit parent-child data hierarchy, dynamically layering multiple dimensional filters simultaneously across different row depths.
+
+* **Hierarchical Coordinates:** When a user expands a parent node (`Categoria`) to reveal child rows (`Editora`), the execution block evaluates the DAX expressions under a compounding coordinate system (e.g., `Categoria = "Épico e Aventura"` **AND** `Editora = "Alexandria"`).
+* **The Granular Calculation Trap (The Wrong Denominator):** Reusing simple filter-erasure functions inside matrix hierarchies often yields highly distorted percentages that defy mathematical expectations.
+
+* **The Broken Matrix Share Code (Educational Specimen):**
+
+```dax
+  Porcentagem = 
+  VAR TotalDeFaturamentoEditora = 'Medidas'[Total de faturamento]
+  VAR TotalDeVendasCategoria = CALCULATE('Medidas'[total de faturamento], ALL(registro_livros_marketing[Categoria]))
+  VAR porcentagem = DIVIDE(TotalDeFaturamentoEditora, TotalDeVendasCategoria)
+  RETURN
+      porcentagem
+```
+
+* **Contextual Breakdown:** Inside the `TotalDeVendasCategoria` variable, using `ALL(Categoria)` destroys the category coordinate but *leaves the active visual publisher coordinate untouched*. As a result, the calculation evaluates the share of a single publisher against that same publisher globally, instead of tracking the publisher's share strictly within that specific category subset. This produces conflicting values like 71.89% inside sub-rows that cannot be rolled up to 100%.
+
+### 4.4. The Two DAX Contexts & CALCULATE Evaluation Engine
+To build scalable data models, developers must isolate Row Context (scanning engine) from Filter Context (coordination engine), leveraging CALCULATE to bridge or modify them.
+
+* **Row Context (The Scanner):** Evaluates expressions line-by-line. 
+  * Active inside **Calculated Columns** or triggered explicitly by **Iterator Functions** (`SUMX`, `AVERAGEX`). It does not inherently compute aggregates or cross-filter dimensions.
+* **Filter Context (The Slicer):** The global coordinates active at evaluation time, dictated by visual headers, slicers, or explicit engine instructions.
+
+* **CALCULATE Filter Modification Paths:**
+  1. **Filter Overwrite (Context Cleansing):** Erases incoming matrix coordinates using `ALL` to inject a clean global predicate.
+  2. **Filter Intersection (Context Aggregation):** Retains active background visual coordinates and introduces an additional constraint via logical `AND`.
+
+* **Anti-Pattern Warning (The FILTER Table Trap):** Passing a full `FILTER(ALL(Table), ...)` block for simple column predicates forces an expensive row-by-row table scan, killing engine performance. High-performance DAX mandates native implicit predicates.
+
+### 4.5. Multi-Value Predicates & Context Preservation (IN & KEEPFILTERS)
+When expanding a business rule to target multiple categorical values simultaneously without destroying background matrix coordinates, DAX requires multi-value list evaluation paired with explicit filter preservation.
+
+* **The `IN` Operator (List Syntax):** Instead of nesting messy, low-performance logical `OR` (`||`) statements, DAX allows the use of curly braces `{}` to construct an inline list. The `IN` operator performs a highly optimized membership check against this discrete data array.
+
+* **The `KEEPFILTERS` Modifier:** By default, when `CALCULATE` injects a filter on a column, it overwrites existing filters on that same column. Wrapping the predicate in `KEEPFILTERS()` forces the engine into an **intersection** instead of an overwrite, merging the visual's coordinates with the measure's internal list via a logical `AND`.
+
+* **Production Code (Multi-Category Evaluation):**
+
+```dax
+  Total de vendas Fantasia = 
+  CALCULATE(
+      'Medidas'[Total de faturamento],
+      KEEPFILTERS('registro_livros_marketing'[Categoria] IN {"Fantasia", "Mitologia e Fantasia"})
+  )
+```
+
+## 5: Advanced DAX Engine Review & Architectural Q&A
+
+### 5.1. Cross-Table Navigation via RELATED()
+* **Question:** Explain the operational mechanics of the `RELATED` function and its performance implications within a calculated column.
+* **Technical Architecture:** The `RELATED` function operates strictly across active relationships, pulling data from the **"One"** side (Lookup/Dimension table) into the **"Many"** side (Fact table) of a $1 \rightarrow *$ model topology. It requires an active row context to perform the row-by-row lookup mismatch prevention.
+* **Performance Assessment:** Reusing `RELATED` inside Calculated Columns is an anti-pattern for large datasets. Because Calculated Columns are computed during model refresh and stored statically in RAM, they bypass the VertiPaq column store optimization, increasing file size and slowing down memory processing compared to dynamic measures.
+
+### 5.2. Evaluation Context Mechanics
+* **Question:** Define Filter Context within Power BI, map its types, and provide operational examples.
+* **The Twin Engine Contexts:**
+  1. **Filter Context (The Where Clause):** The dynamic environment established by external visual elements (matrix headers, slicers, report filters). It filters the underlying data tables *before* any calculation begins.
+  2. **Row Context (The Iterator):** The line-by-line scanning state triggered by calculated columns or iterative X-functions (`SUMX`, `FILTER`). It recognizes individual row slots but *does not* inherently filter other tables or perform aggregations.
+* **Application Example:** When placing `Total de Faturamento` into a Matrix rowed by `Categoria`, the *Filter Context* isolates rows matching that specific category. If a `SUMX` is called inside that measure, it opens a *Row Context* to scan the isolated rows one by one.
+
+### 5.3. CALCULATE Execution and Predicate Logic
+* **Question:** Explain the internal mechanics of `CALCULATE(<expression>, <filters>)` within a corporate business scenario.
+* **Engine Execution Order:** `CALCULATE` is the only function capable of destroying, modifying, or creating evaluation contexts. It evaluates its filter arguments in a clean background state, applies them to the current Filter Context (overwriting or intersecting), and then executes the core scalar expression.
+* **Predicate Capacity:** There is no hard limit to the number of filter predicates passed inside a single `CALCULATE` block. Multiple predicates separated by commas are natively evaluated using an implicit logical **`AND`** (intersection).
+* **Corporate Use Case (Market Share):** In a retail dashboard, calculating a brand's market share requires dividing its sales by the entire category's total. `CALCULATE` achieves this by injecting an `ALL(Brand)` predicate, forcing the denominator to ignore visual rows and capture the global category baseline.
