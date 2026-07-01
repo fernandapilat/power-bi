@@ -130,3 +130,73 @@ When displaying continuous dates in a table or visual, the DAX engine naturally 
 * **The Performance Bottleneck:** Without a validation guard, filtering a specific year forces the engine to iterate over thousands of empty rows from adjacent years, drastically increasing the **DAX Query** time inside the **Performance Analyzer**.
 * **The Short-Circuit Solution:** By using `IF(COUNTROWS(Fact_Table) > 0, ...)`, the engine performs a lightweight count first. If the count is zero, it immediately skips the expensive `AVERAGEX` or `CALCULATE` logic (short-circuiting).
 * **Benchmark Results:** In production scenarios, filtering out these empty context evaluations can reduce the DAX Query execution time from **897 ms to 26 ms** — a **97% increase in performance**, ensuring instantaneous dashboard interactions.
+
+## 3: Scenario Analysis
+
+### 3.1. Dynamic What-If Parameters (Numeric Range)
+To deliver advanced analytical flexibility to stakeholders, hardcoded temporal windows (such as a fixed 30-day period) can be replaced by dynamic values using Power BI's **Numeric Range Parameters**. This generates a disconnected configuration table with a slicer, exposing a selectable measure (e.g., `[Período Valor]`) to inject directly into DAX calculations.
+
+* **Mathematical Smoothness vs. Granularity:** Adjusting the moving average window alters the analytical abstraction. A smaller numeric parameter preserves local variance (micro-trends), while a higher numeric parameter flattens variance to expose structural directional movements (macro-trends).
+
+* **Production Code (Dynamic Rolling Measures via Parameter Injection):**
+
+```dax
+media movel = 
+VAR DataAtual = MAX(Tb_Calendario[Date])
+VAR JanelaDias = [Período Valor]
+RETURN
+IF(
+    COUNTROWS(Tb_ItensNotas) > 0,
+    AVERAGEX(
+        DATESBETWEEN(
+            Tb_Calendario[Date],
+            DataAtual - JanelaDias,
+            DataAtual
+        ),
+        [Total Vendas]
+    )
+)
+
+media movel LY = 
+VAR DataAtual = MAX(Tb_Calendario[Date])
+VAR JanelaDias = [Período Valor]
+RETURN
+IF(
+    COUNTROWS(Tb_ItensNotas) > 0,
+    AVERAGEX(
+        DATESBETWEEN(
+            Tb_Calendario[Date],
+            DataAtual - JanelaDias,
+            DataAtual
+        ),
+        [Total Vendas]
+    )
+)
+```
+
+### 3.2. Predictive "What-If" Scenarios (Price Elasticity & Demand Simulation)
+To evaluate the business impact of pricing strategies against volume elasticity, we can build cross-functional simulation engines. By creating two independent numeric range parameters (`Preço produto` and `Quantidade` ranging from -100% to +100%), management can dynamically simulate trade-offs between profit margin compression and demand spikes.
+
+* **Row-by-Row Evaluation with Cross-Table Logic (`SUMX` + `RELATED`):** Since quantity sits in the fact table (`Tb_ItensNotas`) and unit price sits in the dimension table (`Tb_Produtos`), the engine utilizes `SUMX` to iterate through transactions, pulling the related dimension attributes via `RELATED()` and compounding them with the selected parameter values.
+
+* **Production Code (Complete Scenario Simulation Suite):**
+
+```dax
+    Total vendas cenario = 
+    SUMX(
+        Tb_ItensNotas, 
+        [Quantidade] * (1 + [Quantidade valor]) *
+        RELATED(Tb_Produtos[Preço]) * (1 + [Preço produto valor])
+    )
+
+    Total custo cenario = 
+    // Challenge Accepted: Simulating cost baseline aligned with the new dynamic quantity
+    SUMX(
+        Tb_ItensNotas,
+        [Quantidade] * (1 + [Quantidade valor]) *
+        RELATED(Tb_Produtos[Custo Unitário]) 
+    )
+
+    Total lucro cenario = 
+    [Total vendas cenario] - [Total custo cenario]
+```
