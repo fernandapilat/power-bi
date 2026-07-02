@@ -200,3 +200,21 @@ To evaluate the business impact of pricing strategies against volume elasticity,
     Total lucro cenario = 
     [Total vendas cenario] - [Total custo cenario]
 ```
+
+### 3.3. Dynamic Field Parameters (Metric Switching Optimization)
+To avoid dashboard clutter, visual redundancy, or complex bookmark maintenance, Power BI's **Field Parameters** allow users to dynamically change the measures evaluated inside a single visual. Instead of building separate charts or pages for sales, costs, and profits, a single visual updates its context instantly based on user selection.
+
+* **UX and Architecture Impact:** This technique dramatically reduces the number of visual elements rendered per page. Fewer visuals translate to fewer background queries hitting the Analysis Services engine concurrently, which heavily optimizes page load time.
+* **Implementation Mechanism:** The parameter creates a calculated table using the `NAMEOF()` function to point dynamically to existing explicit measures. To make a chart dynamic, the hardcoded measure in the values/axis bucket (e.g., *Eixo X*) must be replaced by the generated **Field Parameter Column**.
+
+## 4: Advanced Segmentation and Business Intelligence Frameworks
+
+### 4.1. ABC Analysis Framework (Pareto Principle 80/20)
+ABC Analysis is an inventory and sales categorization technique derived from the **Pareto Principle (80/20 Rule)**, which states that roughly 80% of consequences come from 20% of causes. In a Business Intelligence context, this framework isolates critical drivers of profitability from operational noise.
+
+* **Risk Mitigation & Health Check:** If 80% of revenue is concentrated in a tiny fraction of products or clients (e.g., 5%), the business faces high volatility risks (concentration risk). Striving for a balanced Pareto distribution ensures portfolio health.
+* **The Strategic Tiers:**
+    * **Category A (High Relevance):** Top-performing items generating ~80% of cumulative value (requires tight controls).
+    * **Category B (Medium Relevance):** Intermediate items generating ~15% of cumulative value.
+    * **Category C (Low Relevance):** Low-margin or low-volume items generating the remaining ~5% of cumulative value.
+
