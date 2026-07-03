@@ -218,3 +218,103 @@ ABC Analysis is an inventory and sales categorization technique derived from the
     * **Category B (Medium Relevance):** Intermediate items generating ~15% of cumulative value.
     * **Category C (Low Relevance):** Low-margin or low-volume items generating the remaining ~5% of cumulative value.
 
+### 4.2. Dynamic Pareto Accumulation & ABC Classification Engine
+To implement a production-ready ABC classification framework, the DAX engine must perform dynamic row-by-row virtualization to compute rolling accumulated values based on a shifting profitability rank. 
+
+* **The TOPN Dynamic Context Trick:** Instead of static iterations, the calculation combines `CALCULATE` with `TOPN`. By feeding the current row's `[Rank Lucro]` into `TOPN`, the engine creates a dynamic nested virtual table containing *only the top N rows up to that point*, summing their values to output a flawless running total.
+
+* **Production Code (The ABC Blueprint Measures):**
+
+```dax
+Rank Lucro = 
+RANKX(
+    ALLSELECTED(Tb_Produtos),
+    [Total Lucro]
+)
+
+Acumulado = 
+CALCULATE(
+    [Total Lucro],
+    TOPN(
+        [Rank Lucro],
+        ALLSELECTED(Tb_Produtos),
+        [Total Lucro],
+        DESC
+    )
+)
+
+% Acumulado = 
+DIVIDE(
+    [Acumulado],
+    SUMX(
+        ALLSELECTED(Tb_Produtos),
+        [Total Lucro]
+    )
+)
+
+Analise ABC = 
+SWITCH(
+    TRUE(),
+    [% Acumulado] <= 0.60, "Produto A",
+    [% Acumulado] <= 0.80, "Produto B",
+    "Produto C"
+)
+```
+
+### 4.3. Data Visualization: The Dynamic Pareto & Reference Lines Chart
+To translate the DAX ABC framework into an executive-level dashboard, we implement a **Line and Stacked Column Chart**. This composite visual maps absolute profitability against its cumulative weight while establishing hard visual boundaries for action.
+
+* **Static Threshold Measures as Reference Lines:** By creating single-value measures (`60% = 0.6` and `80% = 0.8`) and plotting them on the secondary Y-axis (Line Y-axis) along with the `% Acumulado`, we force the chart to render fixed horizontal thresholds. This segments the visual field into clear strategic zones.
+* **Contextual Tooltips & Conditional Aesthetics:** Injecting the `Analise ABC` measure into the *Tooltip* bucket enables immediate on-hover categorization. Furthermore, applying the conditional formatting rules (`>= 0` to `< 0.6` as Dark Blue, `>= 0.6` to `< 0.8` as Blue, and `>= 0.8` to `< 1` as Light Blue) dynamically paints the bars based on their Pareto tier.
+
+![alt text](graph_pareto.png)
+
+## Module 4: Advanced Segmentation and Business Intelligence Frameworks
+
+### 4.4. Virtual Relationships via Disconnected Segmentation Tables (Dynamic Top-N Tiers)
+When business requirements demand grouping entities into dynamic operational macro-buckets (e.g., *Top 5*, *Top 6-10*, *Outros*) that do not natively exist in the relational schema, we implement a **Disconnected Table Pattern**. This bypasses physical relationships by enforcing evaluation filters directly inside the DAX engine.
+
+* **The Segment Boundaries Pattern:** A static configuration table (`TopN produtos`) is injected with boundary markers (`Min` and `Max` integer ranks). The main measure uses local variables (`VAR`) to harvest these context boundaries row-by-row, passing them into an iterated `FILTER` block that intercepts the product table.
+
+* **Production Code (Dynamic Ranking and Virtual Intersect):**
+
+```dax
+    Rank Lucro = 
+    RANKX(
+        ALL(Tb_Produtos), // Enforces absolute historical rank across all contexts
+        [Total Lucro]
+    )
+
+    TopN lucro = 
+    VAR limiteMin = MIN('TopN produtos'[Min])
+    VAR limiteMax = MAX('TopN produtos'[Max])
+    RETURN
+    CALCULATE(
+        [Total Lucro],
+        FILTER(
+            Tb_Produtos,
+            [Rank Lucro] >= limiteMin &&
+            [Rank Lucro] <= limiteMax
+        )
+    )
+```
+
+### 4.5. Portfolio Concentration: Visualizing Top-N Aggregations (`Treemap` & `Scatter Chart`)
+To effectively communicate client/product concentration risks to stakeholders, data must be structured into high-impact visuals that emphasize structural discrepancies in revenue distribution.
+
+* **Treemap for Proportional Impact:** Implementing a Treemap using the dynamic `TopN` group column allows executives to evaluate the macro-share of each tier at a single glance. If the "Top 5" block dominates more than half of the visual real estate, it signals a high portfolio concentration risk.
+* **Scatter Chart for Distribution Categorization:** Mapping individual products on the X-axis against their dynamic performance on the Y-axis, while using the `TopN` classification as the *Legend*, applies a clear color-coded clustering effect. This isolates hyper-performing products from the operational "long tail".
+
+#### 🛠️ Resolving the Ordering Challenge (Calculated Column Sort)
+By default, the engine sorts categorical text descriptions (like "Top 5", "Top 10", "Outros") alphabetically, which breaks analytical flow. To fix this, a supporting index column must be injected into the underlying dynamic table code:
+
+```dax
+// Conceptual fix for the sorting table challenge
+TopN_Table = {
+    ("Top 5", 1),
+    ("Top 10", 2),
+    ("Outros", 3)
+}
+```
+
+The Solution: Select the TopN column in the Data/Model view, go to the Column Tools tab, click Sort by Column (Classificar por coluna), and choose the corresponding numeric Index/Order column. This forces the charts to align chronologically.
