@@ -6,13 +6,14 @@ This repository is dedicated to documenting my learning journey, exercises, and 
 
 ## Status: Under Construction
 
-The table below lists the courses and learning paths (trilhas) I am currently taking or planning to start soon.
+The table below lists the courses and learning paths I am currently taking or mapping out.
 
 | Type | Course / Path Name | Status |
 | :--- | :--- | :---: |
 | Path | Practicing Power BI | Completed |
 | Quick Guide | Power BI: ETL with Python in Power BI | Completed |
-| Path | DAX in Power BI | NIn Progress |
+| Path | DAX in Power BI | Completed |
+| Course | Power BI: Diving into M Language | In Progress |
 | Course | Python and Power BI: Analyzing Financial Market Data | Not Started |
 | Course | Power BI: Creating Custom Visuals | Not Started |
 | Course | Power BI: Implementing RLS | In Progress |
@@ -24,11 +25,12 @@ The table below lists the courses and learning paths (trilhas) I am currently ta
 
 The repository is organized by folders dedicated to each course and learning path:
 
-* `/course-power-bi-applying-rls`
 * `/path-practicing-power-bi`
 * `/path-dax-in-power-bi`
+* `/course-power-bi-diving-into-m-language`
 * `/course-python-and-power-bi-financial-market`
 * `/course-power-bi-custom-visuals`
+* `/course-power-bi-applying-rls`
 
 ---
 
