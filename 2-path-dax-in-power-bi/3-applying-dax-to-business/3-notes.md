@@ -318,3 +318,46 @@ TopN_Table = {
 ```
 
 The Solution: Select the TopN column in the Data/Model view, go to the Column Tools tab, click Sort by Column (Classificar por coluna), and choose the corresponding numeric Index/Order column. This forces the charts to align chronologically.
+
+## 5: Performance Optimization with DAX Studio
+
+### 5.1. Introduction to DAX Studio and External Tools Integration
+As data models scale in volume and complexity (handling millions of transactions), code execution efficiency becomes paramount. **DAX Studio** is the industry-standard third-party diagnostic software used to execute queries, audit semantic models, and profile DAX measure performance.
+
+* **The VertiPaq Connection:** When launched directly from an active Power BI Desktop session via the **External Tools** tab, DAX Studio automatically establishes an internal connection to the local Analysis Services instance (the VertiPaq engine hosting the model). This exposes the entire metadata schema, internal tables, and explicit measures instantly without manual server configuration.
+* **Core Benefits for Production Environments:**
+    * **Query Benchmarking:** Evaluates exact query execution times in milliseconds.
+    * **Server Timings Audit:** Splits performance metrics between the Formula Engine (FE) and the Storage Engine (SE) to isolate structural bottlenecks.
+    * **Cache Clearing:** Clears the active engine cache to guarantee unbiased, cold-run benchmark testing.
+
+### 5.3. Query Profiling: Diagnosing `CallbackDataID` and Engine Optimization
+To optimize DAX architecture, a developer must balance workloads between the **Formula Engine (FE)** and the **Storage Engine (SE)**, avoiding processing bottlenecks by ensuring the SE does the heavy lifting.
+
+* **The Workload Split:**
+    * **Formula Engine (FE):** Handles complex logic, scalar values, and top-level query routing. Single-threaded (utilizes only 1 CPU core).
+    * **Storage Engine (SE / VertiPaq):** Performs scans, joins, and aggregations directly in-memory. Highly multi-threaded.
+* **The `CallbackDataID` Performance Bottleneck:** This indicator appears in the *Server Timings* trace when the Storage Engine encounters a row-level context it cannot natively compute (such as injecting an explicit measure inside a row-by-row `IF` condition within a `SUMX` iterator). The SE is forced to drop back to the single-threaded FE for every single iteration, severely inflating query duration.
+* **Optimization Blueprint (Transforming Iteration into Set-Based Filters):**
+
+    ```dax
+    // Inefficient Approach (Triggers CallbackDataID - 305 ms)
+    EVALUATE
+    ROW(
+        "teste",
+        SUMX(
+            Tb_ItensNotas,
+            IF(Tb_ItensNotas[Quantidade] > 20, [Total Vendas] * 1.3, [Total Vendas] * 0.5)
+        )
+    )
+
+    // Optimized Approach (Pure Storage Engine Execution - 7 ms)
+    EVALUATE
+    ROW(
+        "teste",
+        CALCULATE([Total Vendas] * 1.3, Tb_ItensNotas[Quantidade] > 20)
+        + 
+        CALCULATE([Total Vendas] * 0.5, NOT(Tb_ItensNotas[Quantidade] > 20))
+    )
+    ```
+* **Best Practice:** Always clear the engine cache using the **Clear Cache** utility before running a benchmark query. This guarantees a cold run, eliminating false speed readings caused by cached memory artifacts.
+
