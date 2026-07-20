@@ -78,3 +78,57 @@ The Mashup Engine manages structural arrays through precise notation indicators.
     in
         #"Tipo Alterado"[Texto]{0} // Extracts the scalar value from the 1st row of the 'Texto' column
     ```
+
+### 2.4. Record Data Structures (`[ ]`) and Record Collections
+A **Record** (`Record`) in the M Language represents a single-row data structure comprising named fields (key-value pairs). Records map directly to JSON objects and SQL database row items.
+
+* **Record Syntax (`[Field = Value]`):**
+    * Encapsulated inside square brackets `[ ]`.
+    * Fields are separated by commas and assigned values using the equals operator (`=`): `[Nome = "Alura", Idade = 15]`.
+* **Row-Level Table Extraction (`Table{Row}`):**
+    * Applying a zero-based row index directly to a `table` type variable without a column selector (e.g., `#"Tipo Alterado"{0}`) extracts the complete target row and converts it into a standalone `record`.
+* **List of Records (The Foundational API Payload Format):**
+    * Combining brace list containers with record bracket objects constructs a structured array of rows: `{[Nome = "Alura"], [Nome = "Power BI"]}`. This layout forms the prerequisite architecture for building dynamic tables via native M engine functions.
+
+* **Conceptual Code (Record Declaration and List Ingestion):**
+    ```powerquery
+    let
+        SingleRecord = [Nome = "Alura", Idade = 15],
+        ListOfRecords = {
+            [Nome = "Alura", Idade = 15],
+            [Nome = "Power BI", Idade = 20]
+        }
+    in
+        ListOfRecords // Renders an array of interactive [Record] elements in the Power Query UI
+    ```
+
+### 2.5. Native Table Instantiation and Strongly-Typed Columns (`#table`)
+Beyond importing external datasets, the M engine provides the `#table()` intrinsic constructor to programmatically generate data structures without overhead.
+
+* **Untyped Table Constructor (Default behavior):**
+    Accepts column headers as a list of strings and row data as a multi-dimensional array (list of lists).
+    ```powerquery
+    #table(
+        {"Nome", "Data", "Idade"},
+        {
+            {"Alura", "01/01/2022", 20},
+            {"Power BI", "01/01/2022", 30}
+        }
+    )
+    ```
+
+* **Strongly-Typed Table Constructor (`type table [ Record ]`):**
+    Eliminates downstream type conversion steps (`Table.TransformColumnTypes`) by enforcing column primitive types inside an initial schema definition record. Literal values must conform to native constructors (e.g., `#date(YYYY, MM, DD)`).
+    ```powerquery
+    #table(
+        type table [
+            Nome = text,
+            Data = date,
+            Idade = number
+        ],
+        {
+            {"Alura", #date(2022, 1, 1), 20},
+            {"Power BI", #date(2022, 1, 1), 30}
+        }
+    )
+    ```
